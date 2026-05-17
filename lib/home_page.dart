@@ -164,6 +164,7 @@ class _HomePageState extends State<HomePage> {
                     title: Text(
                       tarefa.titulo,
                       style: TextStyle(
+                        fontWeight: FontWeight.bold,
                         decoration: tarefa.concluida
                           ? TextDecoration.lineThrough
                           : TextDecoration.none,
