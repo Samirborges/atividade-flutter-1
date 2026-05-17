@@ -1,6 +1,6 @@
 import 'dart:convert';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'login_page.dart';
 import 'perfil_page.dart';
 import 'tarefa.dart';
@@ -13,18 +13,20 @@ class HomePage extends StatefulWidget {
 }
 
 class _HomePageState extends State<HomePage> {
-  List<Tarefa> _itens = [];
+  // Mantemos as duas listas: a original completa e a filtrada que aparece na tela
+  List<Tarefa> _itensCompleto = [];
+  List<Tarefa> _itensFiltrados = [];
 
+  bool _estaPesquisando = false;
+  final TextEditingController _buscaController = TextEditingController();
   final TextEditingController _tituloController = TextEditingController();
   final TextEditingController _descricaoController = TextEditingController();
 
-    
   @override
   void initState() {
     super.initState();
     _carregarTarefas();
   }
-
 
   Future<void> _carregarTarefas() async {
     final prefs = await SharedPreferences.getInstance();
@@ -33,15 +35,17 @@ class _HomePageState extends State<HomePage> {
     if (tarefasString != null) {
       final List<dynamic> listaDecodificada = json.decode(tarefasString);
       setState(() {
-        _itens = listaDecodificada.map((item) => Tarefa.fromMap(item)).toList();
+        _itensCompleto = listaDecodificada.map((item) => Tarefa.fromMap(item)).toList();
+        _filtrarTarefas(_buscaController.text); // Inicializa a lista visual
       });
     } else {
       setState(() {
-        _itens = [
+        _itensCompleto = [
           Tarefa(titulo: "Tarefa de Flutter", descricao: "Estudar Widget"),
           Tarefa(titulo: "Prática de Dart ", descricao: "Fazer exercícios da professora"),
           Tarefa(titulo: "Projeto Integrado", descricao: "Atividade da Sprint"),
         ];
+        _filtrarTarefas('');
       });
       _salvarNoDispositivo(); 
     }
@@ -49,9 +53,22 @@ class _HomePageState extends State<HomePage> {
 
   Future<void> _salvarNoDispositivo() async {
     final prefs = await SharedPreferences.getInstance();
-    final List<Map<String, dynamic>> listaMapas = _itens.map((t) => t.toMap()).toList();
+    final List<Map<String, dynamic>> listaMapas = _itensCompleto.map((t) => t.toMap()).toList();
     final String dadosMapeados = json.encode(listaMapas);
     await prefs.setString('lista_tarefas', dadosMapeados);
+  }
+
+  // Função responsável por filtrar a lista conforme a digitação
+  void _filtrarTarefas(String termoBusca) {
+    setState(() {
+      if (termoBusca.isEmpty) {
+        _itensFiltrados = List.from(_itensCompleto);
+      } else {
+        _itensFiltrados = _itensCompleto
+            .where((tarefa) => tarefa.titulo.toLowerCase().contains(termoBusca.toLowerCase()))
+            .toList();
+      }
+    });
   }
 
   void _salvarTarefa(int? index) {
@@ -59,16 +76,21 @@ class _HomePageState extends State<HomePage> {
     
     setState(() {
       if (index == null) {
-        _itens.add(
+        _itensCompleto.add(
           Tarefa(
             titulo: _tituloController.text,
             descricao: _descricaoController.text,
           ),
         );
       } else {
-        _itens[index].titulo = _tituloController.text;
-        _itens[index].descricao = _descricaoController.text;
+        // Encontra a tarefa correta na lista completa comparando a referência
+        final tarefaEditada = _itensFiltrados[index];
+        final indexNaCompleta = _itensCompleto.indexOf(tarefaEditada);
+        
+        _itensCompleto[indexNaCompleta].titulo = _tituloController.text;
+        _itensCompleto[indexNaCompleta].descricao = _descricaoController.text;
       }
+      _filtrarTarefas(_buscaController.text); // Atualiza o filtro na tela
     });
 
     _salvarNoDispositivo();
@@ -79,15 +101,17 @@ class _HomePageState extends State<HomePage> {
 
   void _excluirTarefa(int index) {
     setState(() {
-      _itens.removeAt(index);
+      final tarefaExcluida = _itensFiltrados[index];
+      _itensCompleto.remove(tarefaExcluida);
+      _filtrarTarefas(_buscaController.text); // Atualiza o filtro na tela
     });
     _salvarNoDispositivo();
   }
 
   void _mostrarFormulario([int? index]) {
     if (index != null) {
-      _tituloController.text = _itens[index].titulo;
-      _descricaoController.text = _itens[index].descricao;
+      _tituloController.text = _itensFiltrados[index].titulo;
+      _descricaoController.text = _itensFiltrados[index].descricao;
     }
 
     showDialog(
@@ -102,9 +126,7 @@ class _HomePageState extends State<HomePage> {
               decoration: const InputDecoration(labelText: 'Título'),
               autofocus: true,
             ),
-
             const SizedBox(height: 10),
-
             TextField(
               controller: _descricaoController,
               decoration: const InputDecoration(labelText: 'Descrição'),
@@ -133,8 +155,33 @@ class _HomePageState extends State<HomePage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Home'),
+        // Altera dinamicamente o título para um TextField de busca
+        title: _estaPesquisando
+            ? TextField(
+                controller: _buscaController,
+                autofocus: true,
+                style: const TextStyle(color: Colors.black),
+                decoration: const InputDecoration(
+                  hintText: 'Buscar tarefa pelo título...',
+                  border: InputBorder.none,
+                ),
+                onChanged: _filtrarTarefas,
+              )
+            : const Text('Home'),
         actions: [
+          // Botão para ativar/desativar a barra de pesquisa
+          IconButton(
+            icon: Icon(_estaPesquisando ? Icons.close : Icons.search),
+            onPressed: () {
+              setState(() {
+                _estaPesquisando = !_estaPesquisando;
+                if (!_estaPesquisando) {
+                  _buscaController.clear();
+                  _filtrarTarefas('');
+                }
+              });
+            },
+          ),
           IconButton(
             icon: const Icon(Icons.logout),
             tooltip: 'Sair do Sistema',
@@ -171,19 +218,21 @@ class _HomePageState extends State<HomePage> {
         ),
       ),
 
-      body: _itens.isEmpty
-          ? const Center(child: Text("Nenhuma tarefa cadastrada."))
+      // Passamos a ler e renderizar a lista _itensFiltrados
+      body: _itensFiltrados.isEmpty
+          ? const Center(child: Text("Nenhuma tarefa encontrada."))
           : ListView.builder(
-              itemCount: _itens.length,
+              itemCount: _itensFiltrados.length,
               itemBuilder: (context, index) {
-                final tarefa = _itens[index];
+                final tarefa = _itensFiltrados[index];
                 return Card(
                   margin: const EdgeInsets.symmetric(
                     horizontal: 15,
                     vertical: 6,
                   ),
                   child: ListTile(
-                    leading: Checkbox(value: tarefa.concluida, 
+                    leading: Checkbox(
+                      value: tarefa.concluida, 
                       onChanged: (bool? valor) {
                         setState(() {
                           tarefa.concluida = valor ?? false;
