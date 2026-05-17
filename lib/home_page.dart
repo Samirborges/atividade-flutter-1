@@ -1,3 +1,5 @@
+import 'dart:convert';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter/material.dart';
 import 'login_page.dart';
 import 'perfil_page.dart';
@@ -11,24 +13,50 @@ class HomePage extends StatefulWidget {
 }
 
 class _HomePageState extends State<HomePage> {
-  final List<Tarefa> _itens = [
-    Tarefa(titulo: "Tarefa de Flutter", descricao: "Estudar Widget"),
-
-    Tarefa(
-      titulo: "Prática de Dart ",
-      descricao: "Fazer exercícios da professora",
-    ),
-
-    Tarefa(titulo: "Projeto Integrado", descricao: "Atividade da Sprint"),
-  ];
+  List<Tarefa> _itens = [];
 
   final TextEditingController _tituloController = TextEditingController();
   final TextEditingController _descricaoController = TextEditingController();
 
-  void _salvarTarefa(int? index) {
-    if (_tituloController.text.isEmpty || _descricaoController.text.isEmpty)
-      return;
+    
+  @override
+  void initState() {
+    super.initState();
+    _carregarTarefas();
+  }
 
+
+  Future<void> _carregarTarefas() async {
+    final prefs = await SharedPreferences.getInstance();
+    final String? tarefasString = prefs.getString('lista_tarefas');
+
+    if (tarefasString != null) {
+      final List<dynamic> listaDecodificada = json.decode(tarefasString);
+      setState(() {
+        _itens = listaDecodificada.map((item) => Tarefa.fromMap(item)).toList();
+      });
+    } else {
+      setState(() {
+        _itens = [
+          Tarefa(titulo: "Tarefa de Flutter", descricao: "Estudar Widget"),
+          Tarefa(titulo: "Prática de Dart ", descricao: "Fazer exercícios da professora"),
+          Tarefa(titulo: "Projeto Integrado", descricao: "Atividade da Sprint"),
+        ];
+      });
+      _salvarNoDispositivo(); 
+    }
+  }
+
+  Future<void> _salvarNoDispositivo() async {
+    final prefs = await SharedPreferences.getInstance();
+    final List<Map<String, dynamic>> listaMapas = _itens.map((t) => t.toMap()).toList();
+    final String dadosMapeados = json.encode(listaMapas);
+    await prefs.setString('lista_tarefas', dadosMapeados);
+  }
+
+  void _salvarTarefa(int? index) {
+    if (_tituloController.text.isEmpty || _descricaoController.text.isEmpty) return;
+    
     setState(() {
       if (index == null) {
         _itens.add(
@@ -42,6 +70,8 @@ class _HomePageState extends State<HomePage> {
         _itens[index].descricao = _descricaoController.text;
       }
     });
+
+    _salvarNoDispositivo();
     _tituloController.clear();
     _descricaoController.clear();
     Navigator.pop(context);
@@ -51,12 +81,12 @@ class _HomePageState extends State<HomePage> {
     setState(() {
       _itens.removeAt(index);
     });
+    _salvarNoDispositivo();
   }
 
   void _mostrarFormulario([int? index]) {
     if (index != null) {
       _tituloController.text = _itens[index].titulo;
-
       _descricaoController.text = _itens[index].descricao;
     }
 
@@ -85,7 +115,6 @@ class _HomePageState extends State<HomePage> {
           TextButton(
             onPressed: () {
               Navigator.pop(context);
-
               _tituloController.clear();
               _descricaoController.clear();
             },
@@ -159,6 +188,7 @@ class _HomePageState extends State<HomePage> {
                         setState(() {
                           tarefa.concluida = valor ?? false;
                         });
+                        _salvarNoDispositivo();
                       }
                     ),
                     title: Text(
