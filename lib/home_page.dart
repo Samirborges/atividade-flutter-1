@@ -147,14 +147,29 @@ class _HomePageState extends State<HomePage> {
           : ListView.builder(
               itemCount: _itens.length,
               itemBuilder: (context, index) {
+                final tarefa = _itens[index];
                 return Card(
                   margin: const EdgeInsets.symmetric(
                     horizontal: 15,
                     vertical: 6,
                   ),
                   child: ListTile(
-                    title: Text(_itens[index].titulo),
-                    subtitle: Text(_itens[index].descricao),
+                    leading: Checkbox(value: tarefa.concluida, 
+                      onChanged: (bool? valor) {
+                        setState(() {
+                          tarefa.concluida = valor ?? false;
+                        });
+                      }
+                    ),
+                    title: Text(
+                      tarefa.titulo,
+                      style: TextStyle(
+                        decoration: tarefa.concluida
+                          ? TextDecoration.lineThrough
+                          : TextDecoration.none,
+                      ),
+                    ),
+                    subtitle: Text(tarefa.descricao),
                     trailing: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
